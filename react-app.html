@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Comments App</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+
+        .app {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .status {
+            padding: 15px 30px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8f9fa;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .connection-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #dc3545;
+        }
+
+        .connection-dot.connected {
+            background: #28a745;
+        }
+
+        .unread-counter {
+            background: #dc3545;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .comments-container {
+            max-height: 500px;
+            overflow-y: auto;
+            padding: 20px 30px;
+        }
+
+        .comment {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #dee2e6;
+            transition: all 0.3s ease;
+        }
+
+        .comment.new-comment {
+            border-left-color: #28a745;
+            background: #d4edda;
+            animation: highlight 3s ease-out;
+        }
+
+        @keyframes highlight {
+            0% { background: #d4edda; }
+            100% { background: #f8f9fa; }
+        }
+
+        .comment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .comment-author {
+            font-weight: bold;
+            color: #495057;
+        }
+
+        .comment-time {
+            font-size: 12px;
+            color: #6c757d;
+        }
+
+        .comment-text {
+            line-height: 1.5;
+        }
+
+        .comment-form {
+            padding: 30px;
+            border-top: 1px solid #eee;
+            background: #f8f9fa;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #495057;
+        }
+
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #dee2e6;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .submit-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .typing-indicator {
+            padding: 10px 30px;
+            font-style: italic;
+            color: #6c757d;
+            font-size: 14px;
+            border-top: 1px solid #eee;
+            background: #f8f9fa;
+        }
+
+        .typing-dots {
+            display: inline-block;
+        }
+
+        .typing-dots span {
+            display: inline-block;
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: #6c757d;
+            margin: 0 1px;
+            animation: typing 1.4s infinite both;
+        }
+
+        .typing-dots span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-dots span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typing {
+            0%, 60%, 100% {
+                transform: translateY(0);
+            }
+            30% {
+                transform: translateY(-10px);
+            }
+        }
+
+        .debug-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e9ecef;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #495057;
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <div class="header">
+            <h1>💬 Real-time Comments</h1>
+            <p>Experience live collaboration like GitHub PR comments</p>
+        </div>
+
+        <div class="status">
+            <div class="connection-status">
+                <div class="connection-dot" id="connectionDot"></div>
+                <span id="connectionStatus">Connecting...</span>
+            </div>
+            <div class="unread-counter" id="unreadCounter" style="display: none;">0 unread</div>
+        </div>
+
+        <div class="comments-container" id="commentsContainer">
+            <!-- Comments will be loaded here -->
+        </div>
+
+        <div class="typing-indicator" id="typingIndicator" style="display: none;">
+            <span id="typingText">Someone is typing</span>
+            <div class="typing-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+
+        <div class="comment-form">
+            <div class="form-group">
+                <label for="authorInput">Your Name:</label>
+                <input type="text" id="authorInput" placeholder="Enter your name" required>
+            </div>
+            <div class="form-group">
+                <label for="commentText">Comment:</label>
+                <textarea id="commentText" placeholder="Write your comment here..." required></textarea>
+            </div>
+            <button type="button" class="submit-btn" id="submitBtn" onclick="submitComment()">
+                Post Comment
+            </button>
+        </div>
+
+        <div class="debug-info" id="debugInfo">
+            <div>Debug Info:</div>
+            <div id="debugContent">Initializing...</div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script>
+        class RealtimeComments {
+            constructor() {
+                this.socket = null;
+                this.userId = this.generateUserId();
+                this.typingTimer = null;
+                this.newCommentIds = new Set();
+                this.unreadCount = 0;
+                this.isConnected = false;
+                
+                this.init();
+            }
+
+            generateUserId() {
+                let userId = localStorage.getItem('userId');
+                if (!userId) {
+                    userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                    localStorage.setItem('userId', userId);
+                }
+                return userId;
+            }
+
+            init() {
+                this.connectSocket();
+                this.setupEventListeners();
+                this.updateDebugInfo('App initialized');
+            }
+
+            connectSocket() {
+                this.updateDebugInfo('Connecting to server...');
+                
+                this.socket = io('http://localhost:3001', {
+                    query: { userId: this.userId },
+                    transports: ['websocket', 'polling']
+                });
+
+                this.socket.on('connect', () => {
+                    this.isConnected = true;
+                    this.updateConnectionStatus(true);
+                    this.updateDebugInfo(`Connected with ID: ${this.socket.id}`);
+                });
+
+                this.socket.on('disconnect', (reason) => {
+                    this.isConnected = false;
+                    this.updateConnectionStatus(false);
+                    this.updateDebugInfo(`Disconnected: ${reason}`);
+                });
+
+                this.socket.on('connect_error', (error) => {
+                    this.updateDebugInfo(`Connection error: ${error.message}`);
+                });
+
+                this.socket.on('initial_comments', (comments) => {
+                    this.displayComments(comments);
+                    this.updateDebugInfo(`Loaded ${comments.length} initial comments`);
+                });
+
+                this.socket.on('comment_added', (comment) => {
+                    this.addComment(comment);
+                    this.newCommentIds.add(comment.id);
+                    setTimeout(() => {
+                        this.newCommentIds.delete(comment.id);
+                        this.refreshComments();
+                    }, 3000);
+                    this.updateDebugInfo(`New comment from ${comment.author}`);
+                });
+
+                this.socket.on('unread_count', (count) => {
+                    this.updateUnreadCount(count);
+                });
+
+                this.socket.on('user_typing', (data) => {
+                    if (data.user !== this.getCurrentUser()) {
+                        this.showTypingIndicator(data.user);
+                    }
+                });
+            }
+
+            setupEventListeners() {
+                const commentText = document.getElementById('commentText');
+                commentText.addEventListener('input', () => {
+                    this.handleTyping();
+                });
+
+                // Auto-save author name
+                const authorInput = document.getElementById('authorInput');
+                const savedAuthor = localStorage.getItem('authorName');
+                if (savedAuthor) {
+                    authorInput.value = savedAuthor;
+                }
+                authorInput.addEventListener('input', () => {
+                    localStorage.setItem('authorName', authorInput.value);
+                });
+
+                // Intersection Observer for marking comments as read
+                this.setupReadObserver();
+            }
+
+            setupReadObserver() {
+                const observer = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            const commentId = entry.target.dataset.commentId;
+                            if (commentId) {
+                                this.markCommentAsRead(commentId);
+                            }
+                        }
+                    });
+                }, { threshold: 0.5 });
+
+                // Observer will be applied to new comments as they're added
+                this.intersectionObserver = observer;
+            }
+
+            handleTyping() {
+                const user = this.getCurrentUser();
+                if (user && this.socket) {
+                    this.socket.emit('typing_start', { user });
+                    
+                    clearTimeout(this.typingTimer);
+                    this.typingTimer = setTimeout(() => {
+                        this.socket.emit('typing_stop', { user });
+                    }, 2000);
+                }
+            }
+
+            getCurrentUser() {
+                return document.getElementById('authorInput').value.trim();
+            }
+
+            submitComment() {
+                const author = document.getElementById('authorInput').value.trim();
+                const text = document.getElementById('commentText').value.trim();
+
+                if (!author || !text) {
+                    alert('Please fill in both name and comment fields');
+                    return;
+                }
+
+                if (this.socket && this.isConnected) {
+                    this.socket.emit('new_comment', { author, text });
+                    document.getElementById('commentText').value = '';
+                    this.updateDebugInfo(`Sent comment as ${author}`);
+                } else {
+                    alert('Not connected to server. Please refresh the page.');
+                }
+            }
+
+            displayComments(comments) {
+                const container = document.getElementById('commentsContainer');
+                container.innerHTML = '';
+                
+                comments.forEach(comment => {
+                    this.addCommentElement(comment);
+                });
+            }
+
+            addComment(comment) {
+                this.addCommentElement(comment);
+                this.scrollToBottom();
+            }
+
+            addCommentElement(comment) {
+                const container = document.getElementById('commentsContainer');
+                const commentDiv = document.createElement('div');
+                commentDiv.className = 'comment';
+                commentDiv.dataset.commentId = comment.id;
+                
+                if (this.newCommentIds.has(comment.id)) {
+                    commentDiv.classList.add('new-comment');
+                }
+
+                const timeStr = new Date(comment.timestamp).toLocaleString();
+                
+                commentDiv.innerHTML = `
+                    <div class="comment-header">
+                        <span class="comment-author">${this.escapeHtml(comment.author)}</span>
+                        <span class="comment-time">${timeStr}</span>
+                    </div>
+                    <div class="comment-text">${this.escapeHtml(comment.text)}</div>
+                `;
+
+                container.appendChild(commentDiv);
+
+                // Apply intersection observer for read tracking
+                if (this.intersectionObserver) {
+                    this.intersectionObserver.observe(commentDiv);
+                }
+            }
+
+            refreshComments() {
+                const comments = document.querySelectorAll('.comment');
+                comments.forEach(commentDiv => {
+                    const commentId = commentDiv.dataset.commentId;
+                    if (!this.newCommentIds.has(commentId)) {
+                        commentDiv.classList.remove('new-comment');
+                    }
+                });
+            }
+
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            scrollToBottom() {
+                const container = document.getElementById('commentsContainer');
+                container.scrollTop = container.scrollHeight;
+            }
+
+            markCommentAsRead(commentId) {
+                if (this.socket) {
+                    this.socket.emit('mark_comment_read', commentId);
+                }
+            }
+
+            updateConnectionStatus(connected) {
+                const dot = document.getElementById('connectionDot');
+                const status = document.getElementById('connectionStatus');
+                
+                if (connected) {
+                    dot.classList.add('connected');
+                    status.textContent = 'Connected';
+                } else {
+                    dot.classList.remove('connected');
+                    status.textContent = 'Disconnected';
+                }
+            }
+
+            updateUnreadCount(count) {
+                this.unreadCount = count;
+                const counter = document.getElementById('unreadCounter');
+                
+                if (count > 0) {
+                    counter.textContent = `${count} unread`;
+                    counter.style.display = 'block';
+                } else {
+                    counter.style.display = 'none';
+                }
+            }
+
+            showTypingIndicator(user) {
+                const indicator = document.getElementById('typingIndicator');
+                const text = document.getElementById('typingText');
+                
+                text.textContent = `${user} is typing`;
+                indicator.style.display = 'block';
+                
+                clearTimeout(this.typingDisplayTimer);
+                this.typingDisplayTimer = setTimeout(() => {
+                    indicator.style.display = 'none';
+                }, 3000);
+            }
+
+            updateDebugInfo(message) {
+                const debugContent = document.getElementById('debugContent');
+                const timestamp = new Date().toLocaleTimeString();
+                debugContent.innerHTML += `<br>[${timestamp}] ${message}`;
+                
+                // Keep only last 10 messages
+                const lines = debugContent.innerHTML.split('<br>');
+                if (lines.length > 11) {
+                    debugContent.innerHTML = lines.slice(-10).join('<br>');
+                }
+            }
+        }
+
+        // Global function for the button onclick
+        let app;
+        function submitComment() {
+            if (app) {
+                app.submitComment();
+            }
+        }
+
+        // Initialize the app when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            app = new RealtimeComments();
+        });
+    </script>
+</body>
+</html>
